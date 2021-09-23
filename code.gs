@@ -1,53 +1,46 @@
+// Copyright 2021 PolyCraft Digital Inc.
+
 var cc = DataStudioApp.createCommunityConnector();
+var DEFAULT_PACKAGE = 'pushengage';
 
-/**
- * Mandatory function required by Google Data Studio that should
- * return the authentication method required by the connector
- * to authorize the third-party service.
- * @return {Object} AuthType
- */
-
+// [START get_authtype]
+// https://developers.google.com/datastudio/connector/reference#getauthtype
 function getAuthType() {
-  return cc.newAuthTypeResponse()
-  .setAuthType(cc.AuthType.KEY)
-  .setHelpUrl('https://www.pushengage.com/api/')
-  .build();
+  var AuthTypes = cc.AuthType;
+  return cc
+    .newAuthTypeResponse()
+    .setAuthType(AuthTypes.KEY)
+    .build();
 }
+// [END get_authtype]
 
-/**
- * Mandatory function required by Google Data Studio that should
- * clear user credentials for the third-party service.
- * This function does not accept any arguments and
- * the response is empty.
- */
-
+// [START resetAuth]
 function resetAuth() {
   var userProperties = PropertiesService.getUserProperties();
   userProperties.deleteProperty('dscc.key');
 }
+// [END resetAuth]
 
-/**
- * Mandatory function required by Google Data Studio that should
- * determine if the authentication for the third-party service is valid.
- * @return {Boolean}
- */
-
+// [START isauthvalid]
 function isAuthValid() {
   var userProperties = PropertiesService.getUserProperties();
   var key = userProperties.getProperty('dscc.key');
-  return checkForValidKey(key);
+  // This assumes you have a validateKey function that can validate
+  // if the key is valid.
+  function validateKey(key) {
+    return false;
+  }
 }
+// [END isauthvalid]
 
-/**
- * Mandatory function required by Google Data Studio that should
- * set the credentials after the user enters either their
- * credential information on the community connector configuration page.
- * @param {Object} request The set credentials request.
- * @return {object} An object with an errorCode.
- */
-
+// [START setCredentials]
 function setCredentials(request) {
   var key = request.key;
+
+  // Optional
+  // Check if the provided key is valid through a call to your service.
+  // You would have to have a `checkForValidKey` function defined for
+  // this to work.
   var validKey = checkForValidKey(key);
   if (!validKey) {
     return {
@@ -60,38 +53,34 @@ function setCredentials(request) {
     errorCode: 'NONE'
   };
 }
+// [END setCredentials]
 
-/**
- * Mandatory function required by Google Data Studio that should
- * return the user configurable options for the connector.
- * @param {Object} request
- * @return {Object} fields
- */
-
-function getConfig(request) {
+// [START get_config]
+// https://developers.google.com/datastudio/connector/reference#getconfig
+function getConfig() {
   var config = cc.getConfig();
-  
-  config.newInfo()
+
+  config
+    .newInfo()
     .setId('instructions')
     .setText('Enter the required parameters for defined date range and data grouping.');
-  
+
   config.newTextInput()
     .setId('from')
     .setName('Enter the from date')
     .setHelpText('Enter date in format: YYYY-MM-DD')
     .setPlaceholder('YYYY-MM-DD');
   
-  config.setDateRangeRequired(true);
   config.newTextInput()
     .setId('to')
     .setName('Enter the to date')
     .setHelpText('Enter date in format: YYYY-MM-DD')
     .setPlaceholder('YYYY-MM-DD');
   
-  config.setDateRangeRequired(true);
-  config.newSELECT_SINGLE()
+  config.newSelectSingle()
     .setId('group_by')
     .setName('The analytics will be fetched by groups as (days, week, month)')
+    .setIsDynamic(true)
     .setHelpText('Select how data should group.')
     .addOption(
       config
@@ -112,23 +101,19 @@ function getConfig(request) {
         .setValue("month")
     )
   
-  config.setAllowOverride(true);
-  
+  config.setDateRangeRequired(true);
+  config.setIsSteppedConfig(false);
+
   return config.build();
 }
+// [END get_config]
 
-/**
- * Supports the getSchema() function
- * @param {Object} request
- * @return {Object} fields
- */
-
-function getFields(request) {
-  var cc = DataStudioApp.createCommunityConnector();
+// [START get_schema]
+function getFields() {
   var fields = cc.getFields();
   var types = cc.FieldType;
   var aggregations = cc.AggregationType;
-  
+
   fields.newDimension()
     .setId('date')
     .setType(types.YEAR_MONTH_DAY);
@@ -191,133 +176,172 @@ function getFields(request) {
   return fields;
 }
 
-/**
- * Mandatory function required by Google Data Studio that should
- * return the schema for the given request.
- * This provides the information about how the connector's data is organized.
- * @param {Object} request
- * @return {Object} fields
- */
-
+// https://developers.google.com/datastudio/connector/reference#getschema
 function getSchema(request) {
-  var fields = getFields(request).build();
-  return { schema: fields };
+  return {schema: getFields().build()};
 }
+// [END get_schema]
 
-/**
- * Takes the requested fields with the API response and
- * return rows formatted for Google Data Studio.
- * @param {Object} requestedFields
- * @param {Object} response
- * @return {Array} values
- */
-
-function responseToRows(requestedFields, response, packageName) {
-  // Transform parsed data and filter for requested fields
-  return response.map(function(dailyDownload) {
-    var row = [];
-    requestedFields.asArray().forEach(function (field) {
-      switch (field.getId()) {
-        case 'date':
-          return row.push(dailyDownload.date.replace(/-/g, ''));
-        case 'subscriber_count':
-          return row.push(dailyDownload.subscriber_count);
-        case 'desktop_subscriber_count':
-          return row.push(dailyDownload.desktop_subscriber_count);
-        case 'mobile_subscriber_count':
-          return row.push(dailyDownload.mobile_subscriber_count);
-        case 'unsubscribed_count':
-          return row.push(dailyDownload.unsubscribed_count);
-        case 'desktop_unsubscribed_count':
-          return row.push(dailyDownload.desktop_unsubscribed_count);
-        case 'mobile_unsubscribed_count':
-          return row.push(dailyDownload.mobile_unsubscribed_count);
-        case 'notification_sent':
-          return row.push(dailyDownload.notification_sent);
-        case 'net_subscriber_sent':
-          return row.push(dailyDownload.net_subscriber_sent);
-        case 'view_count':
-          return row.push(dailyDownload.view_count);
-        case 'click_count':
-          return row.push(dailyDownload.click_count);
-        case 'ctr':
-          return row.push(dailyDownload.ctr);
-        default:
-          return row.push('');
-      }
-    });
-    return { values: row };
-  });
-}
-
-/**
-* Mandatory function required by Google Data Studio that should
-* return the tabular data for the given request.
-* @param {Object} request
-* @return {Object}
-*/
-
+// [START get_data]
+// https://developers.google.com/datastudio/connector/reference#getdata
 function getData(request) {
-  var requestedFieldIds = request.fields.map(function(field) {
-    return field.name;
-  });
-  var requestedFields = getFields().forIds(requestedFieldIds);
-  var userProperties = PropertiesService.getUserProperties();
-  var token = userProperties.getProperty('dscc.key');
-  // Fetch and parse data from API
+  request.configParams = validateConfig(request.configParams);
+
+  var requestedFields = getFields().forIds(
+    request.fields.map(function(field) {
+      return field.name;
+    })
+  );
+
+  try {
+    var apiResponse = fetchDataFromApi(request);
+    var normalizedResponse = normalizeResponse(request, apiResponse);
+    var data = getFormattedData(normalizedResponse, requestedFields);
+  } catch (e) {
+    cc.newUserError()
+      .setDebugText('Error fetching data from API. Exception details: ' + e)
+      .setText(
+        'The connector has encountered an unrecoverable error. Please try again later, or file an issue if this error persists.'
+      )
+      .throwException();
+  }
+
+  return {
+    schema: requestedFields.build(),
+    rows: data
+  };
+}
+
+/**
+ * Gets response for UrlFetchApp.
+ *
+ * @param {Object} request Data request parameters.
+ * @returns {string} Response text for UrlFetchApp.
+ */
+function fetchDataFromApi(request) {
   var url = [
     'https://api.pushengage.com/apiv1/analytics/summary?from=' +
     request.dateRange.startDate +
     '&to='+
     request.dateRange.endDate,
-    '&group_by=' +
+    '&group_by' +
     request.configParams.group_by
-  ];
-  var options = {
-    'method' : 'GET',
-    'headers': {
-      'Authorization': token,
-      'Content-Type': 'application/json'
-    },
-    'muteHttpExceptions':true
-  };
-  var response = UrlFetchApp.fetch(url, options);
-  if (response.getResponseCode() == 200) {
-    var parsedResponse = JSON.parse(response);
-    var rows = responseToRows(requestedFields, parsedResponse);
-    return {
-      schema: requestedFields.build(),
-      rows: rows
-    };
-  } else {
-    DataStudioApp.createCommunityConnector()
-    .newUserError()
-    .setDebugText('Error fetching data from API. Exception details: ' + response)
-    .setText('Error fetching data from API. Exception details: ' + response)
-    .throwException();
-  }
+  ].join('');
+  var response = UrlFetchApp.fetch(url);
+  return response;
 }
-  /**
-  * Checks if the Key/Token provided by the user is valid
-  * @param {String} key
-  * @return {Boolean}
-  */
-  function checkForValidKey(key) {
-    var token = key;
-    var today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
-    var url = 'https://api.pushengage.com/apiv1/analytics/summary?from=' + today + '&to=' + today + '&group_by=day';  
-    var options = {
-      'method' : 'GET',
-      'headers': {
-        'Authorization': token,
-        'Content-Type': 'application/json'
-      },
-      'muteHttpExceptions':true
-    };
-    var response = UrlFetchApp.fetch(url, options);
-    if (response.getResponseCode() == 200) {
-      return true;
-    } else {
-      return false;
-    }
+
+/**
+ * Parses response string into an object. Also standardizes the object structure
+ * for single vs multiple packages.
+ *
+ * @param {Object} request Data request parameters.
+ * @param {string} responseString Response from the API.
+ * @return {Object} Contains package names as keys and associated download count
+ *     information(object) as values.
+ */
+function normalizeResponse(request, responseString) {
+  var response = JSON.parse(responseString);
+  var package_list = request.configParams.package.split(',');
+  var mapped_response = {};
+
+  if (package_list.length == 1) {
+    mapped_response[package_list[0]] = response;
+  } else {
+    mapped_response = response;
   }
+
+  return mapped_response;
+}
+
+/**
+ * Formats the parsed response from external data source into correct tabular
+ * format and returns only the requestedFields
+ *
+ * @param {Object} parsedResponse The response string from external data source
+ *     parsed into an object in a standard format.
+ * @param {Array} requestedFields The fields requested in the getData request.
+ * @returns {Array} Array containing rows of data in key-value pairs for each
+ *     field.
+ */
+function getFormattedData(response, requestedFields) {
+  var data = [];
+  Object.keys(response).map(function(packageName) {
+    var package = response[packageName];
+    var downloadData = package.downloads;
+    var formattedData = downloadData.map(function(dailyDownload) {
+      return formatData(requestedFields, packageName, dailyDownload);
+    });
+    data = data.concat(formattedData);
+  });
+  return data;
+}
+// [END get_data]
+
+// https://developers.google.com/datastudio/connector/reference#isadminuser
+function isAdminUser() {
+  return true;
+}
+
+/**
+ * Validates config parameters and provides missing values.
+ *
+ * @param {Object} configParams Config parameters from `request`.
+ * @returns {Object} Updated Config parameters.
+ */
+function validateConfig(configParams) {
+  configParams = configParams || {};
+  configParams.package = configParams.package || DEFAULT_PACKAGE;
+
+  configParams.package = configParams.package
+    .split(',')
+    .map(function(x) {
+      return x.trim();
+    })
+    .join(',');
+
+  return configParams;
+}
+
+/**
+ * Formats a single row of data into the required format.
+ *
+ * @param {Object} requestedFields Fields requested in the getData request.
+ * @param {string} packageName Name of the package who's download data is being
+ *    processed.
+ * @param {Object} dailyDownload Contains the download data for a certain day.
+ * @returns {Object} Contains values for requested fields in predefined format.
+ */
+function formatData(requestedFields, packageName, dailyDownload) {
+  var row = requestedFields.asArray().map(function(requestedField) {
+    switch (requestedField.getId()) {
+        case 'date':
+          return dailyDownload.date.replace(/-/g, '');
+        case 'subscriber_count':
+          return dailyDownload.subscriber_count;
+        case 'desktop_subscriber_count':
+          return dailyDownload.desktop_subscriber_count;
+        case 'mobile_subscriber_count':
+          return dailyDownload.mobile_subscriber_count;
+        case 'unsubscribed_count':
+          return dailyDownload.unsubscribed_count;
+        case 'desktop_unsubscribed_count':
+          return dailyDownload.desktop_unsubscribed_count;
+        case 'mobile_unsubscribed_count':
+          return dailyDownload.mobile_unsubscribed_count;
+        case 'notification_sent':
+          return dailyDownload.notification_sent;
+        case 'net_subscriber_sent':
+          return dailyDownload.net_subscriber_sent;
+        case 'view_count':
+          return dailyDownload.view_count;
+        case 'click_count':
+          return dailyDownload.click_count;
+        case 'ctr':
+          return dailyDownload.ctr;
+        default:
+          return '';
+    }
+  });
+  return {values: row};
+}
