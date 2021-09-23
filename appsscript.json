@@ -1,0 +1,16 @@
+{
+  "timeZone": "America/New_York",
+  "dependencies": {
+    "libraries": []
+  },
+  "dataStudio": {
+    "name": "PushEngage API",
+    "logoUrl": "https://s3.amazonaws.com/emailimages.ensembleiq.com/2021/06/23/ht/PE_Icons.png",
+    "company": "Polycraft Digital",
+    "companyUrl": "https://www.polycraftdigital.com/",
+    "addonUrl": "https://github.com/BayodeOlorundare/pushengage-connector",
+    "supportUrl": "https://github.com/BayodeOlorundare/pushengage-connector",
+    "description": "Custom PushEngage connector for Google Data Studio.",
+    "sources": ["pushengage"]
+  }
+}
